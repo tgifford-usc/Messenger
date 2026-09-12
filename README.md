@@ -30,26 +30,31 @@ Room codes are lower-cased and stripped to letters, digits and dashes. Names are
 | File | What it is |
 |---|---|
 | `api/messages.js` | The whole server. Vercel turns every file in `api/` into a URL. |
+| `public/index.html` | A status page at `/` that checks the database is connected. Not the app; just so the deployment doesn't greet you with a 404. |
 | `dev.js` | Runs the API on your laptop for testing. Vercel ignores it. |
 | `package.json` | Declares the one dependency, `@upstash/redis`, and the `npm run dev` command |
 
 ## Deploying
 
-1. Create a Redis database at [upstash.com](https://upstash.com) (free tier). On its **Details** page, under **Connect → REST**, you'll find `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. The token is a password: don't paste it into slides or commit it.
-2. Put this folder in a GitHub repository.
-3. On [vercel.com](https://vercel.com) choose **Add New → Project**, import the repo, leave every setting at its default and click **Deploy**.
-4. In the Vercel project go to **Settings → Environment Variables** and add both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
-5. **Redeploy** (Deployments → ⋯ on the latest one → Redeploy). Environment variables only take effect on a fresh deployment. This is the step everyone forgets.
-6. Check it: open `https://YOUR-PROJECT.vercel.app/api/messages?room=test` in a browser. You should see `[]`. If you see an error message instead, it will tell you what's missing.
-7. Put that `https://YOUR-PROJECT.vercel.app` address at the top of the app's `index.html`.
+1. Put this folder in a GitHub repository.
+2. On [vercel.com](https://vercel.com) choose **Add New → Project** and import the repo. Leave the build settings at their defaults.
+3. You need a Redis database. Two ways, pick one:
+
+   **A. Let Vercel make one.** On the import screen, under *Optional integrations*, click **Upstash for Redis**, choose the free plan and a region near you (Sydney), and finish the import. The database's credentials are added to the project automatically, as `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Deploy and you're done.
+
+   **B. Make one at upstash.com yourself.** Create a free database at [upstash.com](https://upstash.com). On its Details page, under *Connect → REST*, copy `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Deploy the Vercel project, then go to **Settings → Environment Variables**, add both, and **Redeploy** (Deployments → ⋯ → Redeploy). Environment variables only take effect on a fresh deployment; this is the step everyone forgets.
+
+   The code accepts either set of names. Whichever way you go, the token is a password: don't paste it into slides or commit it.
+4. Check it: open `https://YOUR-PROJECT.vercel.app`. The status page says whether the database is connected, and if not, what's missing. (The raw API is at `/api/messages?room=test`; it should show `[]`.)
+5. Put that `https://YOUR-PROJECT.vercel.app` address at the top of the app's `index.html`.
 
 ## Running on your laptop
 
-Create a file called `.env.local` in this folder containing the same two lines from the Upstash console. It's git-ignored, so it can't be committed by accident. Then:
+Create a file called `.env.local` in this folder containing the database's URL and token, one per line as `NAME=value`. If Vercel made the database (route A), the ready-made snippet is under **Storage → your database → Quickstart**; if you made it at upstash.com (route B), it's on the database's Details page. The file is git-ignored, so it can't be committed by accident. Then:
 
 ```
 npm install
-npm run dev           # API is now at http://localhost:3000/api/messages
+npm run dev           # then open http://localhost:3000
 ```
 
 `npm run dev` runs `node --env-file=.env.local dev.js`. The `--env-file` flag (built into Node 20.6 and later) loads the file into `process.env`, and `dev.js` is a 40-line stand-in for Vercel: it turns `api/messages.js` into a URL and adds the same `req.query`, `req.body`, `res.status()` and `res.json()` helpers. Read it; there's nothing in there you don't already know.
@@ -58,7 +63,7 @@ To test the app against it, set the app's `API` constant to `http://localhost:30
 
 ## Things worth knowing
 
-**Where does `process.env.UPSTASH_REDIS_REST_URL` come from?** Nothing in `api/messages.js` reads a file. On Vercel, the values you typed into Settings → Environment Variables are placed into `process.env` before your function runs; locally, `node --env-file` does the same from `.env.local`. That's the whole idea of environment variables: the code is identical everywhere, only its surroundings change, and the secret never has to live in the repo.
+**Where does `process.env.UPSTASH_REDIS_REST_URL` (or `KV_REST_API_URL`) come from?** Nothing in `api/messages.js` reads a file. On Vercel, the values you typed into Settings → Environment Variables are placed into `process.env` before your function runs; locally, `node --env-file` does the same from `.env.local`. That's the whole idea of environment variables: the code is identical everywhere, only its surroundings change, and the secret never has to live in the repo.
 
 **CORS.** The app lives on `github.io` and the API on `vercel.app`. Browsers block a page from calling a different site unless that site explicitly allows it, which is what the `Access-Control-Allow-Origin` header at the top of the function does. Delete those lines and deploy: the app will stop working with a "Failed to fetch" error, even though the API still works when you open it in a browser tab.
 

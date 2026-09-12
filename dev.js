@@ -7,6 +7,7 @@
 // This file does the same job in ~40 lines, so you can see there's no magic in it.
 
 import http from "node:http";
+import { readFile } from "node:fs/promises";
 import messages from "./api/messages.js";
 
 const PORT = 3000;
@@ -14,6 +15,10 @@ const routes = { "/api/messages": messages };
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
+  if (url.pathname === "/") {  // the status page, as Vercel would serve it
+    res.writeHead(200, { "Content-Type": "text/html" }).end(await readFile(new URL("./public/index.html", import.meta.url)));
+    return;
+  }
   const handler = routes[url.pathname];
   if (!handler) {
     res.writeHead(404, { "Content-Type": "text/plain" }).end(`Nothing at ${url.pathname}. Try /api/messages?room=test`);

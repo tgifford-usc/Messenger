@@ -32,33 +32,42 @@ export default async function handler(req, res) {
     });
   }
 
-  if (req.method === "GET") {
-    const room = cleanRoom(req.query.room);
-    if (!room) return res.status(400).json({ error: "room is required" });
+  try {
+    if (req.method === "GET") return await getMessages(req, res);
+    if (req.method === "POST") return await postMessage(req, res);
+    res.setHeader("Allow", "GET, POST");
+    return res.status(405).json({ error: "method not allowed" });
+  } catch (error) {
+    // If we let this escape, Vercel replies with its own error page, which has no CORS headers,
+    // and the browser reports a confusing "CORS error" instead of the real problem.
+    console.error(error);
+    return res.status(500).json({ error: "Redis request failed: " + error.message });
+  }
+}
 
-    // LRANGE with -50, -1 means "the last 50 items in the list"
-    const messages = await redis.lrange(`room:${room}`, -50, -1);
-    return res.status(200).json(messages);
+async function getMessages(req, res) {
+  const room = cleanRoom(req.query.room);
+  if (!room) return res.status(400).json({ error: "room is required" });
+
+  // LRANGE with -50, -1 means "the last 50 items in the list"
+  const messages = await redis.lrange(`room:${room}`, -50, -1);
+  return res.status(200).json(messages);
+}
+
+async function postMessage(req, res) {
+  const room = cleanRoom(req.body?.room);
+  const from = String(req.body?.from ?? "").trim().slice(0, 30);
+  const text = String(req.body?.text ?? "").trim().slice(0, 500);
+  if (!room || !from || !text) {
+    return res.status(400).json({ error: "room, from and text are required" });
   }
 
-  if (req.method === "POST") {
-    const room = cleanRoom(req.body?.room);
-    const from = String(req.body?.from ?? "").trim().slice(0, 30);
-    const text = String(req.body?.text ?? "").trim().slice(0, 500);
-    if (!room || !from || !text) {
-      return res.status(400).json({ error: "room, from and text are required" });
-    }
-
-    const message = { from, text, time: Date.now() };
-    const key = `room:${room}`;
-    await redis.rpush(key, message);           // add to the end of the room's list
-    await redis.ltrim(key, -MAX_MESSAGES, -1); // throw away the oldest if over the limit
-    await redis.expire(key, ROOM_LIFETIME);    // restart the room's 24h countdown
-    return res.status(201).json(message);
-  }
-
-  res.setHeader("Allow", "GET, POST");
-  return res.status(405).json({ error: "method not allowed" });
+  const message = { from, text, time: Date.now() };
+  const key = `room:${room}`;
+  await redis.rpush(key, message);           // add to the end of the room's list
+  await redis.ltrim(key, -MAX_MESSAGES, -1); // throw away the oldest if over the limit
+  await redis.expire(key, ROOM_LIFETIME);    // restart the room's 24h countdown
+  return res.status(201).json(message);
 }
 
 // Room codes: lowercase letters, digits and dashes only, up to 40 characters.
