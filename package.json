@@ -1,0 +1,13 @@
+{
+  "name": "messenger",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A tiny two-person chat: static page + one Vercel function + Redis",
+  "scripts": {
+    "dev": "node --env-file=.env.local dev.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.0"
+  }
+}
